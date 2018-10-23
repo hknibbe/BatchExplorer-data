@@ -1,0 +1,156 @@
+{
+    "parameters": {
+        "poolId": {
+            "type": "string",
+            "defaultValue": "blender-windows-gpu",
+            "metadata": {
+                "description": "The ID of the pool on which to run the job."
+            }
+        },
+        "jobName": {
+            "type": "string",
+            "defaultValue": "blender-gpu-render",
+            "metadata": {
+                "description": "The name of the Azure Batch job, also used to prefix rendered outputs",
+                "advancedType": "job-id"
+            }
+        },
+         "inputData": {
+            "type": "string",
+            "metadata": {
+                "description": "The file group where the input data is stored",
+                "advancedType": "file-group"
+            }
+        },
+        "inputDataSas": {
+            "type": "string",
+            "metadata": {
+                "description": "SAS token for reading the data from the selected file group",
+                "advancedType": "file-group-sas",
+                "dependsOn": "inputData"
+            }
+        },
+        "blendFile": {
+            "type": "string",
+            "metadata": {
+                "description": "The Blender scene file to be rendered",
+                "advancedType": "file-in-file-group",
+                "dependsOn": "inputData",
+                "wildcards": "*.blend"
+            }
+        },
+        "optionalParameters": {
+            "type": "string",
+            "defaultValue": " ",
+            "metadata": {
+                "description": "Optional parameters to pass to blender, e.g. --scene <name>"
+            }
+        },
+        "frameStart": {
+            "type": "int",
+            "defaultValue": 1,
+            "metadata": {
+                "description": "The first frame to render"
+            }
+        },
+        "frameEnd": {
+            "type": "int",
+            "defaultValue": 1,
+            "metadata": {
+                "description": "The last frame to render"
+            }
+        },
+        "outputs": {
+            "type": "string",
+            "metadata": {
+                "description": "The file group where outputs will be stored",
+                "advancedType": "file-group"
+            }
+        }
+    },
+    "job": {
+        "type": "Microsoft.Batch/batchAccounts/jobs",
+        "properties": {
+            "id": "[parameters('jobName')]",
+            "poolInfo": {
+                "poolId": "[parameters('poolId')]"
+            },
+            "displayName": "[parameters('blendFile')]",
+            "onAllTasksComplete": "terminateJob",
+            "jobPreparationTask":{
+                "userIdentity":{
+                    "autoUser": {
+                        "scope": "pool"
+                    }
+                },
+               "commandLine":"azcopy /source:\"[parameters('inputDataSas')]\" /dest:\"%AZ_BATCH_JOB_PREP_WORKING_DIR%\" /S & exit /b 0",
+               "resourceFiles": [
+                {
+                    "blobSource": "https://raw.githubusercontent.com/Azure/BatchExplorer-data/master/ncj/blender/scripts/blender_cycles_use_gpu.py",
+                    "filePath": "blender_cycles_use_gpu.py"
+                }
+            ]
+            },
+            "jobReleaseTask":{
+               "userIdentity":{
+                   "autoUser": {
+                       "scope": "pool"
+                   }
+               },
+              "commandLine":"DEL /S /Q \"%AZ_BATCH_JOB_PREP_WORKING_DIR%\" & exit /b 0"
+            },
+            "taskFactory": {
+                "type": "parametricSweep",
+                "parameterSets": [
+                    {
+                        "start": "[parameters('frameStart')]",
+                        "end": "[parameters('frameEnd')]",
+                        "step": 1
+                    }
+                ],
+                "repeatTask": {
+                    "displayName": "Rendered Frame {0}",
+                    "commandLine": "\"%BLENDER_2018_EXEC%\" -b -P \"%AZ_BATCH_JOB_PREP_WORKING_DIR%\\blender_cycles_use_gpu.py\" -y \"%AZ_BATCH_JOB_PREP_WORKING_DIR%\\[parameters('blendFile')]\" -o \"%AZ_BATCH_TASK_WORKING_DIR%\\[parameters('jobName')]_####\" -f {0} -t 0 -E CYCLES [parameters('optionalParameters')]",
+                    "outputFiles": [
+                        {
+                            "filePattern": "../stdout.txt",
+                            "destination": {
+                                "autoStorage": {
+                                    "fileGroup": "[parameters('outputs')]",
+                                    "path": "[parameters('jobName')]/logs/frame_{0}.log"
+                                }
+                            },
+                            "uploadOptions": {
+                                "uploadCondition": "taskCompletion"
+                            }
+                        },
+                        {
+                            "filePattern": "../stderr.txt",
+                            "destination": {
+                                "autoStorage": {
+                                    "fileGroup": "[parameters('outputs')]",
+                                    "path": "[parameters('jobName')]/logs/frame_{0}_error.log"
+                                }
+                            },
+                            "uploadOptions": {
+                                "uploadCondition": "taskCompletion"
+                            }
+                        },
+                        {
+                            "filePattern": "[parameters('jobName')]_*",
+                            "destination": {
+                                "autoStorage": {
+                                    "fileGroup": "[parameters('outputs')]",
+                                    "path": "[parameters('jobName')]/outputs"
+                                }
+                            },
+                            "uploadOptions": {
+                                "uploadCondition": "TaskSuccess"
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}

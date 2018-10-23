@@ -1,0 +1,171 @@
+{
+    "templateMetadata": {
+        "description": "Create an animation with FFMpeg. Note this job template will work with any of the Windows rendering pools."
+    },
+    "parameters": {
+        "poolId": {
+            "type": "string",
+            "metadata": {
+                "description": "The ID of the pool on which to run the job"
+            }
+        },
+        "jobName": {
+            "type": "string",
+            "defaultValue": "ffmpeg-animation",
+            "metadata": {
+                "description": "The job name",
+                "advancedType": "job-id"
+            }
+        },
+        "inputData": {
+            "type": "string",
+            "metadata": {
+                "description": "The file group where the input frames are stored",
+                "advancedType": "file-group"
+            }
+        },
+        "inputDataSas": {
+            "type": "string",
+            "metadata": {
+                "description": "SAS token for reading the data from the selected file group",
+                "advancedType": "file-group-sas",
+                "dependsOn": "inputData"
+            }
+        },
+        "inputDataPrefix": {
+            "type": "string",
+            "defaultValue": "parent-folder/outputs",
+            "metadata": {
+                "description": "The relative path with '/' slashes in the filegroup where the individual frames reside"
+            }
+        },
+        "imageFolder": {
+            "type": "string",
+            "defaultValue": "parent-folder\\\\outputs",
+            "metadata": {
+                "description": "Generally the same as the input data prefix, but with '\\\\' slashes, not '/'. '/' doesn't work with AZ Copy"
+            }
+        },
+        "imagePrefix": {
+            "type": "string",
+            "defaultValue": "image",
+            "metadata": {
+                "description": "The image filename prefix"
+            }
+        },
+        "imagePattern": {
+            "type": "string",
+            "defaultValue": "image%04d.jpg",
+            "metadata": {
+                "description": "The pattern to identify the input images, typically image%04d.jpg if rendered using Batch Labs"
+            }
+        },
+        "sequenceStart": {
+            "type": "string",
+            "defaultValue": "1",
+            "metadata": {
+                "description": "The number of the first image frame, if first file is image0472.jpg, then enter 472"
+            }
+        },
+        "width": {
+            "type": "int",
+            "defaultValue": 1600,
+            "metadata": {
+                "description": "Frame output width"
+            }
+        },
+        "height": {
+            "type": "int",
+            "defaultValue": 1200,
+            "metadata": {
+                "description": "Frame output height"
+            }
+        },
+        "framesPerSecond": {
+            "type": "int",
+            "defaultValue": 25,
+            "metadata": {
+                "description": "Frames per second of the video"
+            }
+        },
+        "outputs": {
+            "type": "string",
+            "metadata": {
+                "description": "The file group where task output files are uploaded to",
+                "advancedType": "file-group"
+            }
+        }
+    },
+    "job": {
+        "type": "Microsoft.Batch/batchAccounts/jobs",
+        "properties": {
+            "id": "[parameters('jobName')]",
+            "displayName": "[parameters('jobName')]",
+            "onAllTasksComplete": "terminateJob",
+            "poolInfo": {
+                "poolId": "[parameters('poolId')]"
+            },
+            "jobPreparationTask":{
+                "userIdentity":{
+                    "autoUser": {
+                        "scope": "pool"
+                    }
+                },
+               "commandLine":"azcopy /source:\"[parameters('inputDataSas')]\" /dest:\"%AZ_BATCH_JOB_PREP_WORKING_DIR%\" /Pattern:[parameters('inputDataPrefix')]/[parameters('imagePrefix')] /S & exit /b 0"
+            },
+            "taskFactory": {
+                "type": "taskCollection",
+                "tasks": [
+                    {
+                        "id": "ffmpeg", 
+                        "commandLine": "cmd.exe /c \"ffmpeg -y -r [parameters('framesPerSecond')] -start_number [parameters('sequenceStart')] -i \"%AZ_BATCH_JOB_PREP_WORKING_DIR%\\[parameters('imageFolder')]\\[parameters('imagePattern')]\" -c:v libx264 -vf fps=[parameters('framesPerSecond')] -pix_fmt yuv420p -s [parameters('width')]x[parameters('height')] [parameters('jobName')].mp4\"",
+                        "userIdentity": {
+                            "autoUser": {
+                                "elevationLevel": "admin",
+                                "scope": "pool"
+                            }
+                        },
+                        "outputFiles": [
+                            {
+                                "filePattern": "../stdout.txt",
+                                "destination": {
+                                    "autoStorage": {
+                                        "fileGroup": "[parameters('outputs')]",
+                                        "path": "[parameters('jobName')]/logs/ffmpeg.log"
+                                    }
+                                },
+                                "uploadOptions": {
+                                    "uploadCondition": "taskCompletion"
+                                }
+                            },
+                            {
+                                "filePattern": "../stderr.txt",
+                                "destination": {
+                                    "autoStorage": {
+                                        "fileGroup": "[parameters('outputs')]",
+                                        "path": "[parameters('jobName')]/logs/ffmpeg_error.log"
+                                    }
+                                },
+                                "uploadOptions": {
+                                    "uploadCondition": "taskCompletion"
+                                }
+                            },
+                            {
+                                "filePattern": "[parameters('jobName')].mp4",
+                                "destination": {
+                                    "autoStorage": {
+                                        "fileGroup": "[parameters('outputs')]",
+                                        "path": "[parameters('jobName')]/outputs/[parameters('jobName')].mp4"
+                                    }
+                                },
+                                "uploadOptions": {
+                                    "uploadCondition": "taskSuccess"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    }
+}

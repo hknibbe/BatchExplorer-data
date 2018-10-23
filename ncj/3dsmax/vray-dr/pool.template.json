@@ -1,0 +1,138 @@
+{
+    "parameters": {
+        "poolName": {
+            "type": "string",
+            "metadata": {
+                "description": "Id of the pool"
+            }
+        },
+        "dedicatedVmCount": {
+            "type": "int",
+            "defaultValue": 2,
+            "metadata": {
+                "description": "The number of dedicated nodes in the Azure Batch pool"
+            }
+        },
+        "lowPriorityVmCount": {
+            "type": "int",
+            "defaultValue": 0,
+            "metadata": {
+                "description": "The number of low priority nodes in the Azure Batch pool"
+            }
+        },
+        "vmSize": {
+            "type": "string",
+            "metadata": {
+                "description": "The size of the virtual machines that run the application"
+            },
+            "defaultValue": "Standard_F8s_v2",
+            "allowedValues": [
+                "Standard_A8",
+                "Standard_A9",
+                "Standard_A10",
+                "Standard_A11",
+                "Standard_D2_v3",
+                "Standard_D4_v3",
+                "Standard_D8_v3",
+                "Standard_D16_v3",
+                "Standard_D32_v3",
+                "Standard_D64_v3",
+                "Standard_F2s_v2",
+                "Standard_F4s_v2",
+                "Standard_F8s_v2",
+                "Standard_F16s_v2",
+                "Standard_F32s_v2",
+                "Standard_F64s_v2",
+                "Standard_F72s_v2",
+                "Standard_G4",
+                "Standard_G5",
+                "Standard_H8",
+                "Standard_H16",
+                "Standard_H8m",
+                "Standard_H16m",
+                "Standard_H16r",
+                "Standard_H16mr",
+                "Standard_L4",
+                "Standard_L8",
+                "Standard_L16",
+                "Standard_L32",
+                "Standard_M64s",
+                "Standard_M64ms",
+                "Standard_M128s",
+                "Standard_NC6",
+                "Standard_NC12",
+                "Standard_NC24",
+                "Standard_NC6s_v2",
+                "Standard_NC12s_v2",
+                "Standard_NC24s_v2",
+                "Standard_NC6s_v3",
+                "Standard_NC12s_v3",
+                "Standard_NC24s_v3"
+            ]
+        },
+        "vrayRenderer": {
+            "type": "string",
+            "defaultValue": "VRayAdv",
+            "metadata": {
+                "description": "The renderer to use"
+            },
+            "allowedValues":[
+                "VRayAdv",
+                "VRayRT"
+            ]
+        },
+        "vrayPort": {
+            "type": "string",
+            "defaultValue": "20204",
+            "metadata": {
+                "description": "The port VRay spawner will listen on."
+            }
+        }
+    },
+    "variables": {
+        "osType": {
+            "imageReference": {
+                "publisher": "batch",
+                "offer": "rendering-windows2016",
+                "sku": "rendering",
+                "version": "1.2.9"
+            },
+            "nodeAgentSKUId": "batch.node.windows amd64"
+        }
+    },
+    "pool": {
+        "id": "[parameters('poolName')]",
+        "displayName": "3ds Max VRay DR pool running: [parameters('poolName')]",
+        "vmSize": "[parameters('vmSize')]",
+        "virtualMachineConfiguration": "[variables('osType')]",
+        "targetDedicatedNodes": "[parameters('dedicatedVmCount')]",
+        "targetLowPriorityNodes": "[parameters('lowPriorityVmCount')]",
+        "applicationLicenses": [
+            "3dsmax",
+            "vray"
+        ],
+        "enableAutoScale": false,
+        "enableInterNodeCommunication": true,
+        "startTask": {
+            "commandLine": "cmd.exe /c install-azure-nc-drivers.cmd [parameters('vmSize')] & PrepareVrayServices.bat 2018 [parameters('vrayRenderer')] [parameters('vrayPort')]",
+            "waitForSuccess": false,
+            "maxTaskRetryCount": 1,
+            "userIdentity": {
+                "autoUser": {
+                    "elevationLevel": "admin",
+                    "scope": "pool"
+                }
+            },
+            "resourceFiles": [
+                {
+                    "blobSource": "https://raw.githubusercontent.com/Azure/BatchExplorer-data/master/ncj/3dsmax/scripts/install-azure-nc-drivers.cmd",
+                    "filePath": "install-azure-nc-drivers.cmd"
+                },
+                {
+                    "blobSource":"https://raw.githubusercontent.com/Azure/BatchExplorer-data/master/ncj/3dsmax/scripts/PrepareVrayServices.bat",
+                    "filePath":"PrepareVrayServices.bat"
+                }
+            ]
+        }
+    }
+}
