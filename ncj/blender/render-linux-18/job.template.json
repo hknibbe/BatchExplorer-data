@@ -84,7 +84,7 @@
                         "elevationLevel": "admin"
                     }
                 },
-                "commandLine": "/bin/bash -c 'azcopy --source \"[parameters('inputDataSas')]\" --destination \"$AZ_BATCH_JOB_PREP_WORKING_DIR\" --recursive'"
+                "commandLine": "/bin/bash -c 'azcopy --source \"[parameters('inputDataSas')]\" --destination \"$AZ_BATCH_JOB_PREP_WORKING_DIR\" --recursive'; cp -arv \"$AZ_BATCH_JOB_PREP_WORKING_DIR\" /tmp/"
             },
             "jobReleaseTask": {
                 "userIdentity": {
