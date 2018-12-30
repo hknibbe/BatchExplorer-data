@@ -21,6 +21,13 @@ sudo apt-get -y install dotnet-sdk-2.1
 wget -O azcopy.tar.gz https://aka.ms/downloadazcopyprlinux
 tar -xf azcopy.tar.gz
 ./install.sh
+# Added to install Blender from website
+wget https://download.blender.org/release/Blender2.79/blender-2.79b-linux-glibc219-x86_64.tar.bz2
+mkdir /tmp/blender
+tar -vxf blender-2.79b-linux-glibc219-x86_64.tar.bz2 -C /tmp/
+sudo mv /usr/bin/blender /usr/bin/blender.old
+sudo ln -sf /tmp/blender-2.79b-linux-glibc219-x86_64/blender /usr/bin/blender
+# End of blender
 echo "## DONE ##"
 exit $?
 
